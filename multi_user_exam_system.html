@@ -1,0 +1,2338 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEF Mbacké - Système de Gestion des Essais</title>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+<!-- External libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+
+<style>
+:root {
+  --primary: #0373db;
+  --primary-dark: #025aa5;
+  --success: #198754;
+  --danger: #dc3545;
+  --warning: #ffc107;
+  --info: #0dcaf0;
+  --light: #f8f9fa;
+  --dark: #212529;
+  --border: #dee2e6;
+  --shadow: 0 2px 10px rgba(0,0,0,0.1);
+  --shadow-lg: 0 4px 20px rgba(0,0,0,0.15);
+  --radius: 8px;
+  --transition: all 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: var(--light);
+  color: var(--dark);
+  line-height: 1.6;
+}
+
+/* Loading Spinner */
+.loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255,255,255,0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Layout */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  padding: 0;
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.3s ease;
+  position: fixed;
+  height: 100vh;
+  z-index: 1000;
+}
+
+.sidebar.collapsed {
+  transform: translateX(-100%);
+}
+
+.sidebar-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  text-align: center;
+}
+
+.sidebar-header h1 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.sidebar-header .subtitle {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.user-info {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.user-details h3 {
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  background: rgba(255,255,255,0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+}
+
+.nav-menu {
+  padding: 1rem 0;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+.nav-item {
+  margin: 0.25rem 1rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: rgba(255,255,255,0.8);
+  text-decoration: none;
+  border-radius: var(--radius);
+  transition: var(--transition);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  transform: translateX(4px);
+}
+
+.nav-link.active {
+  background: rgba(255,255,255,0.15);
+  color: white;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: 280px;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 0;
+}
+
+.topbar {
+  background: white;
+  padding: 1rem 2rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 100;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sidebar-toggle {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+
+.sidebar-toggle:hover {
+  background: var(--light);
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.notification-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: var(--transition);
+  position: relative;
+}
+
+.notification-btn:hover {
+  background: var(--light);
+}
+
+.notification-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--danger);
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-btn {
+  background: var(--danger);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  font-size: 0.9rem;
+}
+
+.logout-btn:hover {
+  opacity: 0.9;
+}
+
+.content-area {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+/* Cards */
+.card {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+}
+
+.card-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+.card-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--light);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: var(--dark);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--primary);
+  color: var(--primary);
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+/* Forms */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--dark);
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(3, 115, 219, 0.1);
+}
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  background: var(--light);
+  font-weight: 600;
+  color: var(--dark);
+  font-size: 0.85rem;
+}
+
+.table tr:hover {
+  background: rgba(3, 115, 219, 0.05);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border-left: 4px solid var(--primary);
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  color: var(--dark);
+  font-weight: 500;
+}
+
+.stat-trend {
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.trend-up {
+  color: var(--success);
+}
+
+.trend-down {
+  color: var(--danger);
+}
+
+/* Modal */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.show {
+  display: flex;
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius);
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--dark);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--light);
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Login Screen */
+.login-container {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+}
+
+.login-card {
+  background: white;
+  padding: 3rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-header h1 {
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+}
+
+.login-header p {
+  color: var(--dark);
+  opacity: 0.7;
+}
+
+/* Alerts */
+.alert {
+  padding: 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  border-left: 4px solid;
+}
+
+.alert-success {
+  background: rgba(25, 135, 84, 0.1);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.alert-danger {
+  background: rgba(220, 53, 69, 0.1);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.alert-warning {
+  background: rgba(255, 193, 7, 0.1);
+  border-color: var(--warning);
+  color: #856404;
+}
+
+.alert-info {
+  background: rgba(13, 202, 240, 0.1);
+  border-color: var(--info);
+  color: var(--info);
+}
+
+/* Badge */
+.badge {
+  display: inline-block;
+  padding: 0.35em 0.65em;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.375rem;
+}
+
+.badge-success {
+  background: var(--success);
+  color: white;
+}
+
+.badge-danger {
+  background: var(--danger);
+  color: white;
+}
+
+.badge-warning {
+  background: var(--warning);
+  color: var(--dark);
+}
+
+.badge-info {
+  background: var(--info);
+  color: white;
+}
+
+/* Progress Bar */
+.progress {
+  height: 1rem;
+  background-color: #e9ecef;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background-color: var(--primary);
+  transition: width 0.6s ease;
+}
+
+/* File Upload */
+.file-upload {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.file-upload:hover {
+  border-color: var(--primary);
+  background: rgba(3, 115, 219, 0.05);
+}
+
+.file-upload.dragover {
+  border-color: var(--primary);
+  background: rgba(3, 115, 219, 0.1);
+}
+
+/* Toast Notifications */
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 3000;
+  max-width: 300px;
+  opacity: 0;
+  transform: translateY(100%);
+  transition: var(--transition);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast-success {
+  border-left: 4px solid var(--success);
+}
+
+.toast-error {
+  border-left: 4px solid var(--danger);
+}
+
+.toast-warning {
+  border-left: 4px solid var(--warning);
+}
+
+.toast-info {
+  border-left: 4px solid var(--info);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    transform: translateX(-100%);
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+
+  .topbar {
+    padding: 1rem;
+  }
+
+  .content-area {
+    padding: 1rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-container {
+    font-size: 0.8rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.5rem;
+  }
+}
+
+/* Utility Classes */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.mb-0 { margin-bottom: 0; }
+.mb-1 { margin-bottom: 0.5rem; }
+.mb-2 { margin-bottom: 1rem; }
+.mb-3 { margin-bottom: 1.5rem; }
+.mt-2 { margin-top: 1rem; }
+.d-flex { display: flex; }
+.align-items-center { align-items: center; }
+.justify-content-between { justify-content: space-between; }
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.w-100 { width: 100%; }
+.d-none { display: none; }
+
+/* Hide sections by default */
+.section {
+  display: none;
+}
+
+.section.active {
+  display: block;
+}
+</style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loadingScreen" class="loading">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-container" style="display: none;">
+    <div class="login-card">
+      <div class="login-header">
+        <h1>IEF Mbacké</h1>
+        <p>Système de Gestion des Essais CM2</p>
+      </div>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-control" id="loginEmail" required>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <input type="password" class="form-control" id="loginPassword" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary w-100">Se connecter</button>
+      </form>
+      
+      <div id="loginError" class="alert alert-danger mt-2" style="display: none;"></div>
+      
+      <div class="mt-2 text-center">
+        <small>Première connexion ? <a href="#" id="registerLink">Créer un compte</a></small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="appContainer" class="app-container" style="display: none;">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1>IEF Mbacké</h1>
+        <p class="subtitle">Gestion des Essais CM2</p>
+      </div>
+      
+      <div class="user-info" id="userInfo">
+        <div class="user-avatar" id="userAvatar">A</div>
+        <div class="user-details">
+          <h3 id="userName">Utilisateur</h3>
+          <span class="user-role" id="userRole">Rôle</span>
+        </div>
+      </div>
+      
+      <div class="nav-menu" id="navMenu">
+        <!-- Navigation items will be populated by JavaScript -->
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="sidebar-toggle" id="sidebarToggle">☰</button>
+          <h2 class="page-title" id="pageTitle">Tableau de bord</h2>
+        </div>
+        
+        <div class="topbar-right">
+          <button class="notification-btn" id="notificationBtn">
+            🔔
+            <span class="notification-badge" id="notificationBadge" style="display: none;"></span>
+          </button>
+          <button class="logout-btn" id="logoutBtn">Déconnexion</button>
+        </div>
+      </header>
+
+      <!-- Content Area -->
+      <div class="content-area" id="contentArea">
+        <!-- Super Admin Dashboard -->
+        <section id="superAdminDashboard" class="section">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="totalCenters">0</div>
+              <div class="stat-label">Centres d'examen</div>
+              <div class="stat-trend" id="centersTrend">Chargement...</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="totalCandidates">0</div>
+              <div class="stat-label">Candidats inscrits</div>
+              <div class="stat-trend" id="candidatesTrend">Chargement...</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="totalUsers">0</div>
+              <div class="stat-label">Utilisateurs actifs</div>
+              <div class="stat-trend" id="usersTrend">Chargement...</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="completionRate">0%</div>
+              <div class="stat-label">Taux de saisie global</div>
+              <div class="stat-trend" id="completionTrend">Chargement...</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">🏫 Centres d'examen</h3>
+              <button class="btn btn-primary" id="addCenterBtn">Ajouter un centre</button>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Centre</th>
+                      <th>District</th>
+                      <th>Responsable</th>
+                      <th>Candidats</th>
+                      <th>Progression</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="centersTable">
+                    <!-- Données chargées dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">📊 Statistiques globales</h3>
+            </div>
+            <div class="card-body">
+              <canvas id="globalStatsChart" width="400" height="200"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Center Admin Dashboard -->
+        <section id="centerAdminDashboard" class="section">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="centerCandidatesCount">0</div>
+              <div class="stat-label">Candidats inscrits</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="centerTeachersCount">0</div>
+              <div class="stat-label">Enseignants</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="centerProgressRate">0%</div>
+              <div class="stat-label">Progression saisie</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="centerSubjectsCount">0</div>
+              <div class="stat-label">Matières évaluées</div>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mb-3">
+            <button class="btn btn-primary" id="addCandidateBtn">Ajouter candidat</button>
+            <button class="btn btn-success" id="importExcelBtn">Import Excel</button>
+            <button class="btn btn-outline" id="exportDataBtn">Exporter données</button>
+            <button class="btn btn-warning" id="anonymityBtn">Gestion anonymat</button>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">👥 Gestion des candidats</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <input type="text" class="form-control" id="candidateSearch" placeholder="Rechercher un candidat...">
+              </div>
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>N°</th>
+                      <th>Prénom</th>
+                      <th>Nom</th>
+                      <th>École</th>
+                      <th>Sexe</th>
+                      <th>Progression</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="candidatesTable">
+                    <!-- Données chargées dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Teacher Interface -->
+        <section id="teacherInterface" class="section">
+          <div class="card mb-3">
+            <div class="card-header">
+              <h3 class="card-title">📝 Saisie des notes</h3>
+            </div>
+            <div class="card-body">
+              <div class="d-flex gap-2 mb-3">
+                <div class="form-group">
+                  <label class="form-label">Essai</label>
+                  <select class="form-control form-select" id="teacherEssay">
+                    <option value="1">Essai N°1</option>
+                    <option value="2">Essai N°2</option>
+                    <option value="3">Essai N°3</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Matière</label>
+                  <select class="form-control form-select" id="teacherSubject">
+                    <!-- Chargé dynamiquement -->
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Activité</label>
+                  <select class="form-control form-select" id="teacherActivity">
+                    <!-- Chargé dynamiquement -->
+                  </select>
+                </div>
+              </div>
+
+              <div id="anonymityAlert" class="alert alert-warning" style="display: none;">
+                🔒 Mode anonymat activé - Utilisez les numéros anonymes pour la correction
+              </div>
+
+              <div class="d-flex gap-2 mb-3">
+                <div class="form-group">
+                  <label class="form-label">Numéro candidat</label>
+                  <input type="number" class="form-control" id="candidateNumber" placeholder="Numéro du candidat">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Note (ou ABS)</label>
+                  <input type="text" class="form-control" id="scoreInput" placeholder="Note ou ABS">
+                </div>
+                <div class="form-group" style="margin-top: 1.8rem;">
+                  <button class="btn btn-success" id="saveScoreBtn">Enregistrer</button>
+                  <button class="btn btn-warning" id="markAbsentBtn">Absent</button>
+                </div>
+              </div>
+
+              <div class="progress mb-3">
+                <div class="progress-bar" id="scoringProgress" style="width: 0%"></div>
+              </div>
+              <small id="progressText">0 / 0 candidats notés</small>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">📋 Notes saisies</h3>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>N°</th>
+                      <th>Candidat</th>
+                      <th>Note</th>
+                      <th>Statut</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="scoresTable">
+                    <!-- Scores chargés dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- User Management (Super Admin only) -->
+        <section id="userManagement" class="section">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">👤 Gestion des utilisateurs</h3>
+              <button class="btn btn-primary" id="addUserBtn">Ajouter utilisateur</button>
+            </div>
+            <div class="card-body">
+              <div class="table-container">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Email</th>
+                      <th>Rôle</th>
+                      <th>Centre</th>
+                      <th>Statut</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersTable">
+                    <!-- Utilisateurs chargés dynamiquement -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Statistics & Reports -->
+        <section id="statistics" class="section">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">📈 Statistiques et rapports</h3>
+            </div>
+            <div class="card-body">
+              <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-primary" id="generateReportBtn">Générer rapport</button>
+                <button class="btn btn-success" id="exportStatsBtn">Exporter statistiques</button>
+                <button class="btn btn-info" id="realTimeStatsBtn">Rafraîchir statistiques</button>
+              </div>
+              
+              <canvas id="statisticsChart" width="400" height="200"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <!-- Settings -->
+        <section id="settings" class="section">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">⚙️ Paramètres</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Seuil de réussite (sur 20)</label>
+                <input type="number" class="form-control" id="successThreshold" min="0" max="20" step="0.1">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Année scolaire</label>
+                <input type="text" class="form-control" id="schoolYear" placeholder="2024-2025">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Responsable IEF</label>
+                <input type="text" class="form-control" id="iefResponsible" placeholder="Nom du responsable">
+              </div>
+              <button class="btn btn-primary" id="saveSettingsBtn">Enregistrer paramètres</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modals -->
+  
+  <!-- Add Center Modal -->
+  <div id="addCenterModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un centre</h3>
+        <button class="modal-close" onclick="closeModal('addCenterModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="addCenterForm">
+          <div class="form-group">
+            <label class="form-label">Nom du centre</label>
+            <input type="text" class="form-control" id="centerName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">District</label>
+            <input type="text" class="form-control" id="centerDistrict" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email du responsable</label>
+            <input type="email" class="form-control" id="centerResponsibleEmail" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom du responsable</label>
+            <input type="text" class="form-control" id="centerResponsibleName" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('addCenterModal')">Annuler</button>
+        <button class="btn btn-primary" id="saveCenterBtn">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add User Modal -->
+  <div id="addUserModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un utilisateur</h3>
+        <button class="modal-close" onclick="closeModal('addUserModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="addUserForm">
+          <div class="form-group">
+            <label class="form-label">Nom</label>
+            <input type="text" class="form-control" id="userName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" id="userEmail" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Rôle</label>
+            <select class="form-control form-select" id="userRole" required>
+              <option value="teacher">Enseignant</option>
+              <option value="center_admin">Responsable de centre</option>
+              <option value="super_admin">Administrateur</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Centre</label>
+            <select class="form-control form-select" id="userCenter">
+              <option value="">Sélectionner un centre</option>
+              <!-- Centres chargés dynamiquement -->
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('addUserModal')">Annuler</button>
+        <button class="btn btn-primary" id="saveUserBtn">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Candidate Modal -->
+  <div id="addCandidateModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Ajouter un candidat</h3>
+        <button class="modal-close" onclick="closeModal('addCandidateModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="addCandidateForm">
+          <div class="form-group">
+            <label class="form-label">Numéro</label>
+            <input type="number" class="form-control" id="candidateNo" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Prénom</label>
+            <input type="text" class="form-control" id="candidateFirstName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nom</label>
+            <input type="text" class="form-control" id="candidateLastName" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date de naissance</label>
+            <input type="date" class="form-control" id="candidateDob">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lieu de naissance</label>
+            <input type="text" class="form-control" id="candidatePob">
+          </div>
+          <div class="form-group">
+            <label class="form-label">École</label>
+            <input type="text" class="form-control" id="candidateSchool">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sexe</label>
+            <select class="form-control form-select" id="candidateGender" required>
+              <option value="">Sélectionner</option>
+              <option value="M">Masculin</option>
+              <option value="F">Féminin</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('addCandidateModal')">Annuler</button>
+        <button class="btn btn-primary" id="saveCandidateBtn">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Excel Modal -->
+  <div id="importExcelModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Importer depuis Excel</h3>
+        <button class="modal-close" onclick="closeModal('importExcelModal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="file-upload" id="fileUpload">
+          <p>Glissez-déposez votre fichier Excel ici ou cliquez pour sélectionner</p>
+          <input type="file" id="excelFile" accept=".xlsx,.xls" style="display: none;">
+        </div>
+        <div id="uploadProgress" class="progress mt-2" style="display: none;">
+          <div class="progress-bar" id="uploadProgressBar"></div>
+        </div>
+        <div id="uploadResult" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('importExcelModal')">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer"></div>
+
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      // REMPLACEZ CES VALEURS PAR VOTRE CONFIGURATION FIREBASE
+      apiKey: "your-api-key",
+      authDomain: "your-project-id.firebaseapp.com",
+      projectId: "your-project-id",
+      storageBucket: "your-project-id.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "your-app-id"
+    };
+
+    // Initialize Firebase (will use demo/offline mode if config not provided)
+    let app, auth, db, storage;
+    let isFirebaseConfigured = false;
+
+    try {
+      if (firebaseConfig.apiKey !== "your-api-key") {
+        app = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        storage = firebase.storage();
+        isFirebaseConfigured = true;
+      }
+    } catch (error) {
+      console.warn('Firebase not configured, using demo mode');
+    }
+
+    // Application State
+    class AppState {
+      constructor() {
+        this.currentUser = null;
+        this.currentSection = null;
+        this.centers = [];
+        this.candidates = [];
+        this.users = [];
+        this.subjects = [];
+        this.scores = {};
+        this.settings = {
+          successThreshold: 10,
+          schoolYear: '2024-2025',
+          iefResponsible: ''
+        };
+        this.anonymityConfig = null;
+      }
+
+      async init() {
+        if (isFirebaseConfigured) {
+          // Set up real-time listeners
+          this.setupRealtimeListeners();
+        } else {
+          // Load demo data
+          this.loadDemoData();
+        }
+      }
+
+      loadDemoData() {
+        this.centers = [
+          { id: '1', name: 'École Mame Cheikh Anta Diop', district: 'Commune', responsibleEmail: 'amadou@example.com', responsibleName: 'Amadou Ba', candidatesCount: 234, createdAt: new Date() },
+          { id: '2', name: 'École El Hadji Malick Sy', district: 'Rural', responsibleEmail: 'fatou@example.com', responsibleName: 'Fatou Diallo', candidatesCount: 198, createdAt: new Date() }
+        ];
+
+        this.subjects = [
+          { id: '1', name: 'Langue et communication', activities: [
+            { id: '1', name: 'Expression écrite', points: 20, required: true },
+            { id: '2', name: 'Compréhension', points: 20, required: true }
+          ]},
+          { id: '2', name: 'Mathématiques', activities: [
+            { id: '3', name: 'Calcul', points: 20, required: true },
+            { id: '4', name: 'Géométrie', points: 20, required: true }
+          ]}
+        ];
+
+        this.candidates = [
+          { id: '1', no: 1, firstName: 'Ousmane', lastName: 'Diop', school: 'École A', gender: 'M', centerId: '1', dob: '2010-05-15', pob: 'Dakar' },
+          { id: '2', no: 2, firstName: 'Awa', lastName: 'Ndiaye', school: 'École B', gender: 'F', centerId: '1', dob: '2010-03-22', pob: 'Thiès' }
+        ];
+      }
+
+      setupRealtimeListeners() {
+        // Centers listener
+        db.collection('centers').onSnapshot(snapshot => {
+          this.centers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          this.updateUI();
+        });
+
+        // Candidates listener
+        db.collection('candidates').onSnapshot(snapshot => {
+          this.candidates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          this.updateUI();
+        });
+
+        // Subjects listener
+        db.collection('subjects').onSnapshot(snapshot => {
+          this.subjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          this.updateUI();
+        });
+
+        // Scores listener
+        db.collection('scores').onSnapshot(snapshot => {
+          this.scores = {};
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            if (!this.scores[data.centerId]) this.scores[data.centerId] = {};
+            if (!this.scores[data.centerId][data.essayId]) this.scores[data.centerId][data.essayId] = {};
+            this.scores[data.centerId][data.essayId][data.candidateId] = data;
+          });
+          this.updateUI();
+        });
+      }
+
+      updateUI() {
+        if (this.currentSection) {
+          this.loadSectionData(this.currentSection);
+        }
+      }
+
+      async saveCenter(centerData) {
+        if (isFirebaseConfigured) {
+          return await db.collection('centers').add({
+            ...centerData,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          // Demo mode
+          const id = Date.now().toString();
+          this.centers.push({ id, ...centerData, createdAt: new Date() });
+          return { id };
+        }
+      }
+
+      async saveCandidate(candidateData) {
+        if (isFirebaseConfigured) {
+          return await db.collection('candidates').add(candidateData);
+        } else {
+          // Demo mode
+          const id = Date.now().toString();
+          this.candidates.push({ id, ...candidateData });
+          return { id };
+        }
+      }
+
+      async saveScore(scoreData) {
+        if (isFirebaseConfigured) {
+          const docId = `${scoreData.centerId}_${scoreData.essayId}_${scoreData.candidateId}_${scoreData.subjectId}_${scoreData.activityId}`;
+          return await db.collection('scores').doc(docId).set({
+            ...scoreData,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        } else {
+          // Demo mode - store locally
+          if (!this.scores[scoreData.centerId]) this.scores[scoreData.centerId] = {};
+          if (!this.scores[scoreData.centerId][scoreData.essayId]) this.scores[scoreData.centerId][scoreData.essayId] = {};
+          this.scores[scoreData.centerId][scoreData.essayId][scoreData.candidateId] = scoreData;
+          return { success: true };
+        }
+      }
+
+      loadSectionData(sectionId) {
+        switch(sectionId) {
+          case 'superAdminDashboard':
+            this.loadSuperAdminDashboard();
+            break;
+          case 'centerAdminDashboard':
+            this.loadCenterAdminDashboard();
+            break;
+          case 'teacherInterface':
+            this.loadTeacherInterface();
+            break;
+          case 'userManagement':
+            this.loadUserManagement();
+            break;
+        }
+      }
+
+      loadSuperAdminDashboard() {
+        // Update stats
+        document.getElementById('totalCenters').textContent = this.centers.length;
+        document.getElementById('totalCandidates').textContent = this.candidates.length;
+        document.getElementById('totalUsers').textContent = this.users.length;
+
+        // Update centers table
+        const tbody = document.getElementById('centersTable');
+        tbody.innerHTML = '';
+        
+        this.centers.forEach(center => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${center.name}</td>
+            <td>${center.district}</td>
+            <td>${center.responsibleName || center.responsibleEmail}</td>
+            <td>${center.candidatesCount || 0}</td>
+            <td>
+              <div class="progress">
+                <div class="progress-bar" style="width: ${Math.random() * 100}%"></div>
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="viewCenter('${center.id}')">Voir</button>
+              <button class="btn btn-sm btn-warning" onclick="editCenter('${center.id}')">Modifier</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      loadCenterAdminDashboard() {
+        const userCenterId = this.currentUser?.centerId;
+        const centerCandidates = this.candidates.filter(c => c.centerId === userCenterId);
+        
+        document.getElementById('centerCandidatesCount').textContent = centerCandidates.length;
+
+        // Load candidates table
+        const tbody = document.getElementById('candidatesTable');
+        tbody.innerHTML = '';
+        
+        centerCandidates.forEach(candidate => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${candidate.no}</td>
+            <td>${candidate.firstName}</td>
+            <td>${candidate.lastName}</td>
+            <td>${candidate.school}</td>
+            <td><span class="badge badge-${candidate.gender === 'M' ? 'info' : 'danger'}">${candidate.gender}</span></td>
+            <td>
+              <div class="progress">
+                <div class="progress-bar" style="width: ${Math.random() * 100}%"></div>
+              </div>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="viewCandidate('${candidate.id}')">Voir</button>
+              <button class="btn btn-sm btn-warning" onclick="editCandidate('${candidate.id}')">Modifier</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      loadTeacherInterface() {
+        // Load subjects
+        const subjectSelect = document.getElementById('teacherSubject');
+        subjectSelect.innerHTML = '';
+        this.subjects.forEach(subject => {
+          const option = document.createElement('option');
+          option.value = subject.id;
+          option.textContent = subject.name;
+          subjectSelect.appendChild(option);
+        });
+
+        // Load activities for first subject
+        this.loadActivitiesForSubject();
+      }
+
+      loadActivitiesForSubject() {
+        const subjectId = document.getElementById('teacherSubject').value;
+        const subject = this.subjects.find(s => s.id === subjectId);
+        const activitySelect = document.getElementById('teacherActivity');
+        
+        activitySelect.innerHTML = '';
+        if (subject && subject.activities) {
+          subject.activities.forEach(activity => {
+            const option = document.createElement('option');
+            option.value = activity.id;
+            option.textContent = `${activity.name} (${activity.points} pts)`;
+            activitySelect.appendChild(option);
+          });
+        }
+      }
+
+      loadUserManagement() {
+        // This would load users from Firestore in production
+        console.log('Loading user management');
+      }
+    }
+
+    // Authentication Manager
+    class AuthManager {
+      constructor() {
+        this.currentUser = null;
+      }
+
+      async signIn(email, password) {
+        if (isFirebaseConfigured) {
+          try {
+            const userCredential = await auth.signInWithEmailAndPassword(email, password);
+            return userCredential.user;
+          } catch (error) {
+            throw new Error(this.getErrorMessage(error.code));
+          }
+        } else {
+          // Demo mode - simulate authentication
+          return this.demoAuth(email, password);
+        }
+      }
+
+      demoAuth(email, password) {
+        const demoUsers = [
+          { uid: '1', email: 'admin@ief.sn', role: 'super_admin', name: 'Administrateur IEF', centerId: null },
+          { uid: '2', email: 'centre1@ief.sn', role: 'center_admin', name: 'Amadou Ba', centerId: '1' },
+          { uid: '3', email: 'prof1@ief.sn', role: 'teacher', name: 'Fatima Sarr', centerId: '1' }
+        ];
+
+        const user = demoUsers.find(u => u.email === email);
+        if (user && password === 'demo123') {
+          return user;
+        } else {
+          throw new Error('Email ou mot de passe incorrect');
+        }
+      }
+
+      async signOut() {
+        if (isFirebaseConfigured) {
+          await auth.signOut();
+        } else {
+          this.currentUser = null;
+        }
+      }
+
+      async createUser(userData) {
+        if (isFirebaseConfigured) {
+          try {
+            const userCredential = await auth.createUserWithEmailAndPassword(userData.email, 'defaultPassword123');
+            await userCredential.user.updateProfile({
+              displayName: userData.name
+            });
+            
+            // Save additional user data to Firestore
+            await db.collection('users').doc(userCredential.user.uid).set({
+              name: userData.name,
+              email: userData.email,
+              role: userData.role,
+              centerId: userData.centerId,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            return userCredential.user;
+          } catch (error) {
+            throw new Error(this.getErrorMessage(error.code));
+          }
+        } else {
+          // Demo mode
+          const id = Date.now().toString();
+          appState.users.push({ id, ...userData });
+          return { uid: id, ...userData };
+        }
+      }
+
+      getErrorMessage(errorCode) {
+        const messages = {
+          'auth/user-not-found': 'Utilisateur introuvable',
+          'auth/wrong-password': 'Mot de passe incorrect',
+          'auth/email-already-in-use': 'Cet email est déjà utilisé',
+          'auth/weak-password': 'Le mot de passe doit contenir au moins 6 caractères'
+        };
+        return messages[errorCode] || 'Erreur d\'authentification';
+      }
+    }
+
+    // UI Manager
+    class UIManager {
+      constructor() {
+        this.sidebarCollapsed = false;
+      }
+
+      showLoading() {
+        document.getElementById('loadingScreen').style.display = 'flex';
+      }
+
+      hideLoading() {
+        document.getElementById('loadingScreen').style.display = 'none';
+      }
+
+      showLogin() {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('appContainer').style.display = 'none';
+      }
+
+      showApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'flex';
+        this.updateUserInfo();
+        this.buildNavigation();
+        this.showDefaultSection();
+      }
+
+      updateUserInfo() {
+        if (!appState.currentUser) return;
+        
+        document.getElementById('userName').textContent = appState.currentUser.name || appState.currentUser.email;
+        document.getElementById('userRole').textContent = this.getRoleLabel(appState.currentUser.role);
+        document.getElementById('userAvatar').textContent = (appState.currentUser.name || appState.currentUser.email).charAt(0).toUpperCase();
+      }
+
+      getRoleLabel(role) {
+        const labels = {
+          'super_admin': 'Administrateur',
+          'center_admin': 'Responsable Centre',
+          'teacher': 'Enseignant',
+          'observer': 'Observateur'
+        };
+        return labels[role] || role;
+      }
+
+      buildNavigation() {
+        const navMenu = document.getElementById('navMenu');
+        const userRole = appState.currentUser.role;
+        
+        const navigationByRole = {
+          super_admin: [
+            { id: 'dashboard', label: 'Tableau de bord', icon: '🏠', section: 'superAdminDashboard' },
+            { id: 'users', label: 'Utilisateurs', icon: '👤', section: 'userManagement' },
+            { id: 'stats', label: 'Statistiques', icon: '📊', section: 'statistics' },
+            { id: 'settings', label: 'Paramètres', icon: '⚙️', section: 'settings' }
+          ],
+          center_admin: [
+            { id: 'dashboard', label: 'Tableau de bord', icon: '🏠', section: 'centerAdminDashboard' },
+            { id: 'candidates', label: 'Candidats', icon: '👥', section: 'centerAdminDashboard' },
+            { id: 'scores', label: 'Notes', icon: '📝', section: 'teacherInterface' },
+            { id: 'reports', label: 'Rapports', icon: '📋', section: 'statistics' }
+          ],
+          teacher: [
+            { id: 'scores', label: 'Saisie notes', icon: '📝', section: 'teacherInterface' },
+            { id: 'progress', label: 'Progression', icon: '📈', section: 'teacherInterface' }
+          ]
+        };
+
+        const navItems = navigationByRole[userRole] || [];
+        navMenu.innerHTML = '';
+        
+        navItems.forEach(item => {
+          const navItem = document.createElement('div');
+          navItem.className = 'nav-item';
+          
+          navItem.innerHTML = `
+            <a href="#" class="nav-link" data-section="${item.section}">
+              <span class="nav-icon">${item.icon}</span>
+              <span>${item.label}</span>
+            </a>
+          `;
+          
+          navItem.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showSection(item.section);
+            
+            // Update active state
+            document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+            navItem.querySelector('.nav-link').classList.add('active');
+          });
+          
+          navMenu.appendChild(navItem);
+        });
+      }
+
+      showSection(sectionId) {
+        // Hide all sections
+        document.querySelectorAll('.section').forEach(section => {
+          section.classList.remove('active');
+        });
+        
+        // Show selected section
+        const section = document.getElementById(sectionId);
+        if (section) {
+          section.classList.add('active');
+          appState.currentSection = sectionId;
+          
+          // Update page title
+          const titles = {
+            'superAdminDashboard': 'Administration Générale',
+            'centerAdminDashboard': 'Gestion du Centre',
+            'teacherInterface': 'Saisie des Notes',
+            'userManagement': 'Gestion des Utilisateurs',
+            'statistics': 'Statistiques et Rapports',
+            'settings': 'Paramètres'
+          };
+          
+          document.getElementById('pageTitle').textContent = titles[sectionId] || 'Tableau de bord';
+          
+          // Load section specific data
+          appState.loadSectionData(sectionId);
+        }
+      }
+
+      showDefaultSection() {
+        const userRole = appState.currentUser.role;
+        const defaultSections = {
+          'super_admin': 'superAdminDashboard',
+          'center_admin': 'centerAdminDashboard',
+          'teacher': 'teacherInterface'
+        };
+        
+        const defaultSection = defaultSections[userRole];
+        if (defaultSection) {
+          this.showSection(defaultSection);
+          // Activate first nav item
+          const firstNavLink = document.querySelector('.nav-link');
+          if (firstNavLink) {
+            firstNavLink.classList.add('active');
+          }
+        }
+      }
+
+      toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        
+        if (this.sidebarCollapsed) {
+          sidebar.classList.add('collapsed');
+          mainContent.classList.add('sidebar-collapsed');
+        } else {
+          sidebar.classList.remove('collapsed');
+          mainContent.classList.remove('sidebar-collapsed');
+        }
+      }
+
+      showModal(modalId) {
+        document.getElementById(modalId).classList.add('show');
+      }
+
+      closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('show');
+      }
+
+      showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center">
+            <span>${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: inherit; cursor: pointer;">×</button>
+          </div>
+        `;
+        
+        document.getElementById('toastContainer').appendChild(toast);
+        
+        // Show toast
+        setTimeout(() => toast.classList.add('show'), 100);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+          toast.classList.remove('show');
+          setTimeout(() => toast.remove(), 300);
+        }, 5000);
+      }
+
+      showError(message) {
+        const errorDiv = document.getElementById('loginError');
+        if (errorDiv) {
+          errorDiv.textContent = message;
+          errorDiv.style.display = 'block';
+          
+          setTimeout(() => {
+            errorDiv.style.display = 'none';
+          }, 5000);
+        } else {
+          this.showToast(message, 'error');
+        }
+      }
+    }
+
+    // File Manager
+    class FileManager {
+      constructor() {
+        this.storage = isFirebaseConfigured ? firebase.storage() : null;
+      }
+
+      async uploadFile(file, path) {
+        if (this.storage) {
+          const ref = this.storage.ref().child(path);
+          const uploadTask = ref.put(file);
+          
+          return new Promise((resolve, reject) => {
+            uploadTask.on('state_changed',
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                this.updateUploadProgress(progress);
+              },
+              (error) => reject(error),
+              async () => {
+                const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                resolve(downloadURL);
+              }
+            );
+          });
+        } else {
+          // Demo mode - simulate file upload
+          return new Promise(resolve => {
+            setTimeout(() => resolve('demo-file-url'), 1000);
+          });
+        }
+      }
+
+      updateUploadProgress(progress) {
+        const progressBar = document.getElementById('uploadProgressBar');
+        const progressContainer = document.getElementById('uploadProgress');
+        
+        if (progressBar && progressContainer) {
+          progressContainer.style.display = 'block';
+          progressBar.style.width = `${progress}%`;
+        }
+      }
+
+      async processExcelFile(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const sheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[sheetName];
+              const jsonData = XLSX.utils.sheet_to_json(worksheet);
+              resolve(jsonData);
+            } catch (error) {
+              reject(error);
+            }
+          };
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
+      }
+
+      exportToExcel(data, filename) {
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Data");
+        XLSX.writeFile(wb, filename);
+      }
+    }
+
+    // Application instance
+    let appState, authManager, uiManager, fileManager;
+
+    // Initialize application
+    async function initApp() {
+      appState = new AppState();
+      authManager = new AuthManager();
+      uiManager = new UIManager();
+      fileManager = new FileManager();
+
+      try {
+        uiManager.showLoading();
+        await appState.init();
+        
+        // Set up authentication state listener
+        if (isFirebaseConfigured) {
+          auth.onAuthStateChanged(async (user) => {
+            if (user) {
+              // Load user profile from Firestore
+              const userDoc = await db.collection('users').doc(user.uid).get();
+              if (userDoc.exists) {
+                appState.currentUser = { uid: user.uid, ...userDoc.data() };
+                uiManager.showApp();
+              }
+            } else {
+              appState.currentUser = null;
+              uiManager.showLogin();
+            }
+            uiManager.hideLoading();
+          });
+        } else {
+          // Demo mode
+          uiManager.hideLoading();
+          uiManager.showLogin();
+        }
+
+      } catch (error) {
+        console.error('Erreur d\'initialisation:', error);
+        uiManager.hideLoading();
+        uiManager.showLogin();
+      }
+    }
+
+    // Event Handlers
+    function setupEventListeners() {
+      // Login form
+      document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('loginEmail').value;
+        const password = document.getElementById('loginPassword').value;
+        
+        try {
+          const user = await authManager.signIn(email, password);
+          if (user) {
+            if (isFirebaseConfigured) {
+              // User will be handled by auth state listener
+            } else {
+              // Demo mode
+              appState.currentUser = user;
+              uiManager.showApp();
+            }
+          }
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Logout
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        try {
+          await authManager.signOut();
+          appState.currentUser = null;
+          uiManager.showLogin();
+          
+          // Clear forms
+          document.getElementById('loginEmail').value = '';
+          document.getElementById('loginPassword').value = '';
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Sidebar toggle
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        uiManager.toggleSidebar();
+      });
+
+      // Add Center
+      document.getElementById('addCenterBtn').addEventListener('click', () => {
+        uiManager.showModal('addCenterModal');
+      });
+
+      document.getElementById('saveCenterBtn').addEventListener('click', async () => {
+        const centerData = {
+          name: document.getElementById('centerName').value,
+          district: document.getElementById('centerDistrict').value,
+          responsibleEmail: document.getElementById('centerResponsibleEmail').value,
+          responsibleName: document.getElementById('centerResponsibleName').value,
+          candidatesCount: 0
+        };
+
+        try {
+          await appState.saveCenter(centerData);
+          uiManager.closeModal('addCenterModal');
+          uiManager.showToast('Centre ajouté avec succès');
+          
+          // Clear form
+          document.getElementById('addCenterForm').reset();
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Add User
+      document.getElementById('addUserBtn').addEventListener('click', () => {
+        uiManager.showModal('addUserModal');
+        
+        // Populate centers dropdown
+        const centerSelect = document.getElementById('userCenter');
+        centerSelect.innerHTML = '<option value="">Sélectionner un centre</option>';
+        appState.centers.forEach(center => {
+          const option = document.createElement('option');
+          option.value = center.id;
+          option.textContent = center.name;
+          centerSelect.appendChild(option);
+        });
+      });
+
+      document.getElementById('saveUserBtn').addEventListener('click', async () => {
+        const userData = {
+          name: document.getElementById('userName').value,
+          email: document.getElementById('userEmail').value,
+          role: document.getElementById('userRole').value,
+          centerId: document.getElementById('userCenter').value || null
+        };
+
+        try {
+          await authManager.createUser(userData);
+          uiManager.closeModal('addUserModal');
+          uiManager.showToast('Utilisateur créé avec succès');
+          
+          // Clear form
+          document.getElementById('addUserForm').reset();
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Add Candidate
+      document.getElementById('addCandidateBtn').addEventListener('click', () => {
+        uiManager.showModal('addCandidateModal');
+      });
+
+      document.getElementById('saveCandidateBtn').addEventListener('click', async () => {
+        const candidateData = {
+          no: parseInt(document.getElementById('candidateNo').value),
+          firstName: document.getElementById('candidateFirstName').value,
+          lastName: document.getElementById('candidateLastName').value,
+          dob: document.getElementById('candidateDob').value,
+          pob: document.getElementById('candidatePob').value,
+          school: document.getElementById('candidateSchool').value,
+          gender: document.getElementById('candidateGender').value,
+          centerId: appState.currentUser.centerId || appState.centers[0]?.id
+        };
+
+        try {
+          await appState.saveCandidate(candidateData);
+          uiManager.closeModal('addCandidateModal');
+          uiManager.showToast('Candidat ajouté avec succès');
+          
+          // Clear form
+          document.getElementById('addCandidateForm').reset();
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Import Excel
+      document.getElementById('importExcelBtn').addEventListener('click', () => {
+        uiManager.showModal('importExcelModal');
+      });
+
+      // File upload
+      const fileUpload = document.getElementById('fileUpload');
+      const fileInput = document.getElementById('excelFile');
+
+      fileUpload.addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      fileUpload.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        fileUpload.classList.add('dragover');
+      });
+
+      fileUpload.addEventListener('dragleave', () => {
+        fileUpload.classList.remove('dragover');
+      });
+
+      fileUpload.addEventListener('drop', (e) => {
+        e.preventDefault();
+        fileUpload.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          processExcelFile(files[0]);
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          processExcelFile(e.target.files[0]);
+        }
+      });
+
+      // Teacher interface
+      document.getElementById('teacherSubject').addEventListener('change', () => {
+        appState.loadActivitiesForSubject();
+      });
+
+      document.getElementById('saveScoreBtn').addEventListener('click', async () => {
+        const scoreData = {
+          centerId: appState.currentUser.centerId,
+          essayId: document.getElementById('teacherEssay').value,
+          subjectId: document.getElementById('teacherSubject').value,
+          activityId: document.getElementById('teacherActivity').value,
+          candidateId: document.getElementById('candidateNumber').value,
+          score: document.getElementById('scoreInput').value,
+          scoredBy: appState.currentUser.uid,
+          scoredAt: new Date()
+        };
+
+        try {
+          await appState.saveScore(scoreData);
+          uiManager.showToast('Note enregistrée avec succès');
+          
+          // Clear inputs
+          document.getElementById('candidateNumber').value = '';
+          document.getElementById('scoreInput').value = '';
+          
+          // Reload scores table
+          loadScoresTable();
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      document.getElementById('markAbsentBtn').addEventListener('click', () => {
+        document.getElementById('scoreInput').value = 'ABS';
+        document.getElementById('saveScoreBtn').click();
+      });
+
+      // Settings
+      document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+        const settings = {
+          successThreshold: parseFloat(document.getElementById('successThreshold').value),
+          schoolYear: document.getElementById('schoolYear').value,
+          iefResponsible: document.getElementById('iefResponsible').value
+        };
+
+        try {
+          if (isFirebaseConfigured) {
+            await db.collection('settings').doc('global').set(settings);
+          } else {
+            appState.settings = settings;
+          }
+          
+          uiManager.showToast('Paramètres sauvegardés avec succès');
+        } catch (error) {
+          uiManager.showError(error.message);
+        }
+      });
+
+      // Search functionality
+      document.getElementById('candidateSearch')?.addEventListener('input', (e) => {
+        filterCandidates(e.target.value);
+      });
+    }
+
+    // Helper functions
+    async function processExcelFile(file) {
+      try {
+        const uploadResult = document.getElementById('uploadResult');
+        uploadResult.innerHTML = '<div class="alert alert-info">Traitement du fichier...</div>';
+        
+        const data = await fileManager.processExcelFile(file);
+        
+        if (data && data.length > 0) {
+          let successCount = 0;
+          const errors = [];
+          
+          for (const row of data) {
+            try {
+              const candidateData = {
+                no: parseInt(row['N°'] || row['No'] || row['Numero']),
+                firstName: row['Prénom'] || row['Prenom'] || row['FirstName'],
+                lastName: row['Nom'] || row['LastName'],
+                dob: row['Date de naissance'] || row['DOB'],
+                pob: row['Lieu de naissance'] || row['POB'],
+                school: row['École'] || row['Ecole'] || row['School'],
+                gender: row['Sexe'] || row['Gender'],
+                centerId: appState.currentUser.centerId || appState.centers[0]?.id
+              };
+              
+              if (candidateData.no && candidateData.firstName && candidateData.lastName) {
+                await appState.saveCandidate(candidateData);
+                successCount++;
+              } else {
+                errors.push(`Ligne ${successCount + errors.length + 1}: Données incomplètes`);
+              }
+            } catch (error) {
+              errors.push(`Ligne ${successCount + errors.length + 1}: ${error.message}`);
+            }
+          }
+          
+          let resultHtml = `<div class="alert alert-success">${successCount} candidats importés avec succès</div>`;
+          
+          if (errors.length > 0) {
+            resultHtml += `<div class="alert alert-warning">Erreurs (${errors.length}):<br>${errors.join('<br>')}</div>`;
+          }
+          
+          uploadResult.innerHTML = resultHtml;
+        } else {
+          uploadResult.innerHTML = '<div class="alert alert-danger">Aucune donnée trouvée dans le fichier</div>';
+        }
+        
+      } catch (error) {
+        document.getElementById('uploadResult').innerHTML = `<div class="alert alert-danger">Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function loadScoresTable() {
+      const tbody = document.getElementById('scoresTable');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '';
+      
+      const centerId = appState.currentUser.centerId;
+      const essayId = document.getElementById('teacherEssay')?.value || '1';
+      const centerScores = appState.scores[centerId]?.[essayId] || {};
+      
+      Object.values(centerScores).forEach(score => {
+        const candidate = appState.candidates.find(c => c.id === score.candidateId);
+        if (candidate) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${candidate.no}</td>
+            <td>${candidate.firstName} ${candidate.lastName}</td>
+            <td>${score.score}</td>
+            <td><span class="badge badge-success">Saisi</span></td>
+            <td>
+              <button class="btn btn-sm btn-warning" onclick="editScore('${score.candidateId}')">Modifier</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        }
+      });
+    }
+
+    function filterCandidates(searchTerm) {
+      const rows = document.querySelectorAll('#candidatesTable tr');
+      rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm.toLowerCase()) ? '' : 'none';
+      });
+    }
+
+    // Global functions for onclick handlers
+    function closeModal(modalId) {
+      uiManager.closeModal(modalId);
+    }
+
+    function viewCenter(centerId) {
+      uiManager.showToast('Fonctionnalité en développement');
+    }
+
+    function editCenter(centerId) {
+      uiManager.showToast('Fonctionnalité en développement');
+    }
+
+    function viewCandidate(candidateId) {
+      uiManager.showToast('Fonctionnalité en développement');
+    }
+
+    function editCandidate(candidateId) {
+      uiManager.showToast('Fonctionnalité en développement');
+    }
+
+    function editScore(candidateId) {
+      uiManager.showToast('Fonctionnalité en développement');
+    }
+
+    // Initialize app when DOM is loaded
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initApp();
+      setupEventListeners();
+    });
+
+    // Handle responsive sidebar
+    window.addEventListener('resize', () => {
+      if (window.innerWidth <= 768) {
+        document.getElementById('sidebar').classList.add('collapsed');
+        document.getElementById('mainContent').classList.add('sidebar-collapsed');
+      } else if (!uiManager.sidebarCollapsed) {
+        document.getElementById('sidebar').classList.remove('collapsed');
+        document.getElementById('mainContent').classList.remove('sidebar-collapsed');
+      }
+    });
+  </script>
+</body>
+</html>
